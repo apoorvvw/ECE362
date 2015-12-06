@@ -78,17 +78,23 @@ int stop = 0; //Flag to stop car if it encounters an obstacle
 int inter = 0; //Set when the interrupt is sent to sample the RF data
 int M_right = 0; //Right motor speed
 int M_left = 0; //Left motor speed
-int auto_mode = 0;//flag to check if autonomous mode is on
+int auto_mode = 1;//flag to check if autonomous mode is on
+                  //1 for rc and -1 for autonomous
+int prevAutoPb = 0;  //previous state of autonomous pushbutton
 int follow_ob; // Contains the object that needs to be followed
-unsigned char diff;
-unsigned char tempX;
-unsigned char tempY;
-
+unsigned char read1;
+unsigned char read2;
+unsigned char read3;
 unsigned char rin	= 0;	// SCI transmit display buffer IN pointer
 unsigned char rout	= 0;	// SCI transmit display buffer OUT pointer
 #define RSIZE 4	// transmit buffer size (4 characters)
 unsigned char rbuf[RSIZE];	// SCI transmit display buffer
 
+//Thresholds for the IR-sensors
+#define THRESH0_START 35
+#define THRESH1_START 115
+#define THRESH2_START 77
+#define THRESH_STOP 230
 /* Special ASCII characters */
 #define CR 0x0D		// ASCII return 
 #define LF 0x0A		// ASCII new line 
@@ -105,6 +111,8 @@ unsigned char rbuf[RSIZE];	// SCI transmit display buffer
 #define CURMOV 0xFE	// LCD cursor move instruction
 #define LINE1 0x80	// LCD line 1 cursor position
 #define LINE2 0xC0	// LCD line 2 cursor position
+
+
 
 	 	   		
 /*	 	   		
@@ -127,19 +135,22 @@ void  initializations(void) {
   COPCTL = 0x40   ; //COP off; RTI and COP stopped in BDM-mode
 
 /* Initialize asynchronous serial port (SCI) for 9600 baud, interrupts off initially */
-  SCIBDH =  0x01; //set baud rate to 4800
-  SCIBDL =  0x38;  
-  SCICR1 =  0x00; 
+  SCIBDH =  0x01; //set baud rate to 9600
+  SCIBDL =  0x77; //24,000,000 / 16 / 156 = 9600 (approx)    //0x38
+  SCICR1 =  0x00; //$9C = 156
   SCICR2 =  0x0C; //initialize SCI for program-driven operation
   DDRB   =  0x10; //set PB4 for output mode
   PORTB  =  0x10; //assert DTR pin on COM port
 
 /* Initialize peripherals */
-  ATDDIEN = 0x00;
+  ATDDIEN = 0x80;
   ATDCTL2 = 0x80;
   ATDCTL3 = 0x10;
-  ATDCTL4 = 0x85;   
-  
+  ATDCTL4 = 0x85;           
+/* Initialize interrupts */
+  RTICTL = 0x1F;
+  CRGINT_RTIE = 1;
+   
 /* PWM initializations */
   MODRR = 0x0F;    //PT3,2,1,0 used as PWM Ch 3,2,1,0 output
   PWME = 0x0F;    //enable PWM Ch 0,1,2,3
@@ -157,9 +168,7 @@ void  initializations(void) {
   PWMCLK	= 0x0F;  // select scaled clock 
   PWMSCLB = 15;     //scale B register
   PWMSCLA = 15;     //scale B register
-  PWMPRCLK	= 0x55; //A = B = bus clock / 32         
-/* Initialize interrupts */
-	      
+  PWMPRCLK	= 0x55; //A = B = bus clock / 32 	      
 	      
 }
 
@@ -170,35 +179,44 @@ Main
 ***********************************************************************
 */
 void main(void) {
-  	DisableInterrupts
+  DisableInterrupts
 	initializations(); 		  			 		  		
 	EnableInterrupts;
 
  for(;;) {
   
-/* < start of your main loop > */
-if(stop == 1) 
-{
-  PWMDTY0 = 0;
-  PWMDTY1 = 0;
-  PWMDTY2 = 0;
-  PWMDTY3 = 0;
-}
+ if(stop == 1) 
+ {
+   PWMDTY0 = 0;
+   PWMDTY1 = 0;
+   PWMDTY2 = 0;
+   PWMDTY3 = 0;
+ }
 
-SCICR2_RIE = 1; //enable receiver interrupts
-if((rin+1)%RSIZE==rout) {  //if buffer is full 
-     tempY = bci();  //get Y
-     tempX = bci();  //get X
-     diff = bci();   //get diff
-     if(diff == tempY- tempX) {         //set only if all three values are correct
-       X = tempX;
-       Y = tempY;
-       inter = 1;
-     }
-}
+ SCICR2_RIE = 1; //enable receiver interrupts
+ if((rin + 1) % RSIZE == rout) {  //if buffer is full
+    read1 = bci();
+    read2 = bci();
+    read3 = bci();
+    if(read1 == 'A') {
+      X = read2;
+      Y = read3;
+      inter = 1;
+    } else if(read2 == 'A') {
+      X = read3;
+      Y = read1;
+      inter = 1;
+    } else if(read3 == 'A') {
+      X = read1;
+      Y = read2;
+      inter = 1;
+    } else {
+      inter = 0;
+    }
+ }
      
-if(inter == 1 && auto_mode == 0) //Change motor speed when SCI interrupt is received
-{
+ if(inter == 1 && auto_mode == 1) //Change motor speed when SCI interrupt is received
+ {
    inter = 0;
    if(stop == 0) //if car is too close 
    {
@@ -240,9 +258,9 @@ if(inter == 1 && auto_mode == 0) //Change motor speed when SCI interrupt is rece
       } 
    }
    
-}
-if(auto_mode == 1) 
-{
+ }
+ if(auto_mode == -1) 
+ {
    PWMDTY0 = 0; // Stop car 
    PWMDTY1 = 0;
    PWMDTY2 = 0;
@@ -250,7 +268,7 @@ if(auto_mode == 1)
    follow_ob = close_object(); //find which object to follow
    if(follow_ob != 4) // dont move car if objects are too close
       move_car(follow_ob);  //move car in direction
-}
+ }  
   
 
   
@@ -267,13 +285,13 @@ int close_object()
 {
    ATDCTL5 = 0x10;
    while(ATDSTAT0 != 0x80){}
-   if(ATDDR0H >= 220 || ATDDR1H >= 220 || ATDDR2H >= 220) //if object is too close stop
+  /* if(ATDDR0H >= THRESH_STOP || ATDDR1H >= THRESH_STOP || ATDDR2H >= THRESH_STOP) //if object is too close stop
    {
       stop = 1;
       return 4;
-   } 
-   else 
-   {
+   }   */
+ //  else 
+//   {
       stop = 0;
       if(ATDDR0H > ATDDR1H && ATDDR0H > ATDDR2H) // if forward is greatest go there
          return 0;
@@ -287,7 +305,7 @@ int close_object()
          return 1;
       else //if they are all equal go forward
          return 0;
-   }
+//   }
    
 }
 
@@ -340,7 +358,11 @@ interrupt 7 void RTI_ISR(void)
 {
   	// clear RTI interrupt flagt 
   	CRGFLG = CRGFLG | 0x80; 
- 
+    if(PORTAD0_PTAD7 == 0 && prevAutoPb == 1) // check pushbutton
+    {
+      auto_mode *= -1; 
+    }
+    prevAutoPb = PORTAD0_PTAD7;
 
 }
 
@@ -368,7 +390,7 @@ interrupt 20 void SCI_ISR(void)
 {
   if(SCISR1_RDRF == 1)
   {      
-    if((rin+1) % RSIZE!=rout) {     //if not full
+    if((rin+1) % RSIZE != rout) {     //if not full
       rbuf[rin] = SCIDRL; 
       rin = (rin+1) % RSIZE;
     } else {

@@ -74,6 +74,8 @@ unsigned char bci();
 /* Variable declarations */
 unsigned char X = 0; //X value of Joystick
 unsigned char Y = 0; //Y value of Joystick
+unsigned char tempX = 0; //tempX value of Joystick
+unsigned char tempY = 0; //tempY value of Joystick
 int stop = 0; //Flag to stop car if it encounters an obstacle  	   			 		  			 		       
 int inter = 0; //Set when the interrupt is sent to sample the RF data
 int M_right = 0; //Right motor speed
@@ -86,12 +88,11 @@ int follow_ob; // Contains the object that needs to be followed
 unsigned char read1;
 unsigned char read2;
 unsigned char read3;
+unsigned char read4;
+int diff;
 unsigned char rin	= 0;	// SCI transmit display buffer IN pointer
 unsigned char rout	= 0;	// SCI transmit display buffer OUT pointer
-int ATD0;
-int ATD1;
-int ATD2;
-#define RSIZE 4	// transmit buffer size (4 characters)
+#define RSIZE 5	// transmit buffer size (4 characters)
 unsigned char rbuf[RSIZE];	// SCI transmit display buffer
 
 //Thresholds for the IR-sensors
@@ -197,10 +198,6 @@ void main(void) {
 
  for(;;) {
  
- ATD0 = ATDDR0H;
- ATD1 = ATDDR1H;
- ATD2 = ATDDR2H;
- 
  if(PTT_PTT7) {
    //auto_mode is on
    auto_mode = 1;
@@ -233,21 +230,29 @@ void main(void) {
     read1 = bci();
     read2 = bci();
     read3 = bci();
+    read4 = bci();
     if(read1 == 'A') {
-      X = read2;
-      Y = read3;
-      inter = 1;
+      tempX = read2;
+      tempY = read3;
+      diff = read4;
     } else if(read2 == 'A') {
-      X = read3;
-      Y = read1;
-      inter = 1;
+      tempX = read3;
+      tempY = read4;
+      diff =  read1;
     } else if(read3 == 'A') {
-      X = read1;
-      Y = read2;
+      tempX = read4;
+      tempY = read1;
+      diff = read2;
+    } else if (read4 == 'A'){
+      tempX = read1;
+      tempY = read2;
+      diff = read3;
+    }  //end if1
+    if(diff == tempX -tempY) {
+      X = tempX;
+      Y = tempY;
       inter = 1;
-    } else {
-      inter = 0;
-    }
+    }    //end if2
  }
      
  if(inter == 1 && auto_mode == 0) //Change motor speed when SCI interrupt is received

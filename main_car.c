@@ -87,6 +87,9 @@ unsigned char read2;
 unsigned char read3;
 unsigned char rin	= 0;	// SCI transmit display buffer IN pointer
 unsigned char rout	= 0;	// SCI transmit display buffer OUT pointer
+int ATD0;
+int ATD1;
+int ATD2;
 #define RSIZE 4	// transmit buffer size (4 characters)
 unsigned char rbuf[RSIZE];	// SCI transmit display buffer
 
@@ -143,13 +146,12 @@ void  initializations(void) {
   PORTB  =  0x10; //assert DTR pin on COM port
 
 /* Initialize peripherals */
-  ATDDIEN = 0x80;
+  ATDDIEN = 0x00;
   ATDCTL2 = 0x80;
-  ATDCTL3 = 0x10;
+  ATDCTL3 = 0x18;
   ATDCTL4 = 0x85;           
 /* Initialize interrupts */
-  RTICTL = 0x1F;
-  CRGINT_RTIE = 1;
+
    
 /* PWM initializations */
   MODRR = 0x0F;    //PT3,2,1,0 used as PWM Ch 3,2,1,0 output
@@ -184,6 +186,15 @@ void main(void) {
 	EnableInterrupts;
 
  for(;;) {
+ 
+ ATD0 = ATDDR0H;
+ ATD1 = ATDDR1H;
+ ATD2 = ATDDR2H;
+ 
+ if(PTT_PTT7)
+   auto_mode = -1;
+ else
+   auto_mode = 1;
   
  if(stop == 1) 
  {
@@ -285,13 +296,13 @@ int close_object()
 {
    ATDCTL5 = 0x10;
    while(ATDSTAT0 != 0x80){}
-  /* if(ATDDR0H >= THRESH_STOP || ATDDR1H >= THRESH_STOP || ATDDR2H >= THRESH_STOP) //if object is too close stop
+  if(ATDDR0H >= THRESH_STOP || ATDDR1H >= THRESH_STOP || ATDDR2H >= THRESH_STOP) //if object is too close stop
    {
       stop = 1;
       return 4;
-   }   */
- //  else 
-//   {
+   }   
+   else 
+  {
       stop = 0;
       if(ATDDR0H > ATDDR1H && ATDDR0H > ATDDR2H) // if forward is greatest go there
          return 0;
@@ -305,7 +316,7 @@ int close_object()
          return 1;
       else //if they are all equal go forward
          return 0;
-//   }
+   }
    
 }
 
@@ -358,11 +369,6 @@ interrupt 7 void RTI_ISR(void)
 {
   	// clear RTI interrupt flagt 
   	CRGFLG = CRGFLG | 0x80; 
-    if(PORTAD0_PTAD7 == 0 && prevAutoPb == 1) // check pushbutton
-    {
-      auto_mode *= -1; 
-    }
-    prevAutoPb = PORTAD0_PTAD7;
 
 }
 

@@ -73,12 +73,12 @@ void bco(unsigned char x);	// SCI buffered character output
 unsigned char tin	= 0;	// SCI transmit display buffer IN pointer
 unsigned char tout	= 0;	// SCI transmit display buffer OUT pointer
 int send = 0; //Send the value of joystick
-#define TSIZE 4	// transmit buffer size (4 characters)
+#define TSIZE 5	// transmit buffer size (4 characters)
 unsigned char tbuf[TSIZE];	// SCI transmit display buffer   	   			 		  			 		       
 
 /* Special ASCII characters */
-#define CR 0x0D		// ASCII return 
-#define LF 0x0A		// ASCII new line 
+#define CR 0x0D		// ASCII return 
+#define LF 0x0A		// ASCII new line 
 
 /* LCD COMMUNICATION BIT MASKS (note - different than previous labs) */
 #define RS 0x10		// RS pin mask (PTT[4])
@@ -126,9 +126,8 @@ void  initializations(void) {
   //ATD conversion
   ATDDIEN = 0x00;
   ATDCTL2 = 0x80;
-  ATDCTL3 = 0x10;
+  ATDCTL3 = 0x18;
   ATDCTL4 = 0x85;
-  ATDCTL5_MULT = 1;
             
 /* Initialize interrupts */
 
@@ -160,16 +159,13 @@ void main(void) {
       send = 0;  //Set send flag to zero
       ATDCTL5 = 0x10;  //Start ATD conversion
       while(ATDSTAT0 == 0x00){}
-      /*
-      bco(2);
-      bco(1);
-      bco(1);
-      for(i=0;i<1000;i++) {}
-      */
-      bco(ATDDR0H); //Y
-      bco(ATDDR1H); //X
-      bco(ATDDR0H - ATDDR1H);    //Send difference to make sure there is no noise
-      
+      bco('A');
+      bco(ATDDR0H); //X
+      bco(ATDDR1H); //Y
+      if(ATDDR0H>ATDDR1H) 
+        bco(ATDDR0H - ATDDR1H);    //Send difference to make sure there is no noise
+      else
+        bco(ATDDR1H - ATDDR0H);
     }
   
 
@@ -182,7 +178,7 @@ void main(void) {
 
 
 /*
-***********************************************************************                       
+***********************************************************************                       
  RTI interrupt service routine: RTI_ISR
 ************************************************************************
 */
@@ -196,7 +192,7 @@ interrupt 7 void RTI_ISR(void)
 }
 
 /*
-***********************************************************************                       
+***********************************************************************                       
   TIM interrupt service routine	  		
 ***********************************************************************
 */
@@ -210,7 +206,7 @@ interrupt 15 void TIM_ISR(void)
 }
 
 /*
-***********************************************************************                       
+***********************************************************************                       
   SCI interrupt service routine		 		  		
 ***********************************************************************
 */
@@ -218,20 +214,19 @@ interrupt 15 void TIM_ISR(void)
 interrupt 20 void SCI_ISR(void)
 {
   int i = 0;
-  if(SCISR1_TDRE == 1)
-  {      
-    if(tin == tout)
-      SCICR2_SCTIE = 0;
-    else
-    {
-      SCIDRL = tbuf[tout];
-      tout = (tout + 1) % TSIZE; 
-    }
+  while(SCISR1_TDRE != 1)  {}      
+  if(tin == tout)
+    SCICR2_SCTIE = 0;
+  else
+  {
+    SCIDRL = tbuf[tout];
+    tout = (tout + 1) % TSIZE; 
   }
+
 }
 
 /*
-***********************************************************************                              
+***********************************************************************                              
   SCI buffered character output routine - bco
 
   Places character x passed to it into TBUF

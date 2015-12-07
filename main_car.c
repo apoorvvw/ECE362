@@ -78,9 +78,10 @@ int stop = 0; //Flag to stop car if it encounters an obstacle
 int inter = 0; //Set when the interrupt is sent to sample the RF data
 int M_right = 0; //Right motor speed
 int M_left = 0; //Left motor speed
-int auto_mode = 1;//flag to check if autonomous mode is on
-                  //1 for rc and -1 for autonomous
-int prevAutoPb = 0;  //previous state of autonomous pushbutton
+int auto_mode = 0;//flag to check if autonomous mode is on
+                  //0 for rc and 1 for autonomous
+int prev_switch = 0; //previous state of autonomous switch
+int switch_change = 0; //flag for change of switch state
 int follow_ob; // Contains the object that needs to be followed
 unsigned char read1;
 unsigned char read2;
@@ -97,7 +98,7 @@ unsigned char rbuf[RSIZE];	// SCI transmit display buffer
 #define THRESH0_START 35
 #define THRESH1_START 115
 #define THRESH2_START 77
-#define THRESH_STOP 230
+#define THRESH_STOP 240
 /* Special ASCII characters */
 #define CR 0x0D		// ASCII return 
 #define LF 0x0A		// ASCII new line 
@@ -139,7 +140,7 @@ void  initializations(void) {
 
 /* Initialize asynchronous serial port (SCI) for 9600 baud, interrupts off initially */
   SCIBDH =  0x01; //set baud rate to 9600
-  SCIBDL =  0x77; //24,000,000 / 16 / 156 = 9600 (approx)    //0x38
+  SCIBDL =  0x38; //24,000,000 / 16 / 156 = 9600 (approx)    //0x38
   SCICR1 =  0x00; //$9C = 156
   SCICR2 =  0x0C; //initialize SCI for program-driven operation
   DDRB   =  0x10; //set PB4 for output mode
@@ -151,7 +152,17 @@ void  initializations(void) {
   ATDCTL3 = 0x18;
   ATDCTL4 = 0x85;           
 /* Initialize interrupts */
-
+  TSCR1 = 0x80; //enables timer subsystem
+  TIOS = 0x80;   //power on timer channel
+  TSCR2 = 0x0C;  //prescaler = 16
+  TC7 =  150000; //0.1s interrupt rate
+  TIE = 0x00;   //disable interrupts
+/*
+  Initialize the RTI for an 8.192 ms interrupt rate
+*/
+  CRGINT = 0x00;  //disable CRG block
+  RTICTL = 0x70; //8.192 ms interrupt rate
+  
    
 /* PWM initializations */
   MODRR = 0x0F;    //PT3,2,1,0 used as PWM Ch 3,2,1,0 output
@@ -170,8 +181,7 @@ void  initializations(void) {
   PWMCLK	= 0x0F;  // select scaled clock 
   PWMSCLB = 15;     //scale B register
   PWMSCLA = 15;     //scale B register
-  PWMPRCLK	= 0x55; //A = B = bus clock / 32 	      
-	      
+  PWMPRCLK	= 0x55; //A = B = bus clock / 32 	      	      
 }
 
 	 		  			 		  		
@@ -191,10 +201,24 @@ void main(void) {
  ATD1 = ATDDR1H;
  ATD2 = ATDDR2H;
  
- if(PTT_PTT7)
-   auto_mode = -1;
- else
+ if(PTT_PTT7) {
+   //auto_mode is on
    auto_mode = 1;
+   TIE = 0x80;   //enable timer interrupts
+   
+ } else {
+   //auto_mode is off 
+   auto_mode = 0;
+   TIE = 0x00;   //disable interrupts
+ }
+ 
+ if(switch_change == 1) {
+   switch_change = 0;
+   PWMDTY0 = 0x00;
+   PWMDTY1 = 0x00;
+   PWMDTY2 = 0x00;
+   PWMDTY3 = 0x00;
+ }
   
  if(stop == 1) 
  {
@@ -226,8 +250,9 @@ void main(void) {
     }
  }
      
- if(inter == 1 && auto_mode == 1) //Change motor speed when SCI interrupt is received
+ if(inter == 1 && auto_mode == 0) //Change motor speed when SCI interrupt is received
  {
+   TIE = 0x00;   //disable timer interrupts
    inter = 0;
    if(stop == 0) //if car is too close 
    {
@@ -270,18 +295,6 @@ void main(void) {
    }
    
  }
- if(auto_mode == -1) 
- {
-   PWMDTY0 = 0; // Stop car 
-   PWMDTY1 = 0;
-   PWMDTY2 = 0;
-   PWMDTY3 = 0;
-   follow_ob = close_object(); //find which object to follow
-   if(follow_ob != 4) // dont move car if objects are too close
-      move_car(follow_ob);  //move car in direction
- }  
-  
-
   
    } /* loop forever */
    
@@ -296,7 +309,7 @@ int close_object()
 {
    ATDCTL5 = 0x10;
    while(ATDSTAT0 != 0x80){}
-  if(ATDDR0H >= THRESH_STOP || ATDDR1H >= THRESH_STOP || ATDDR2H >= THRESH_STOP) //if object is too close stop
+   if(ATDDR0H >= THRESH_STOP || ATDDR1H >= THRESH_STOP || ATDDR2H >= THRESH_STOP) //if object is too close stop
    {
       stop = 1;
       return 4;
@@ -336,25 +349,19 @@ void move_car(int follow_ob)
     } 
     else if(follow_ob == 1) 
     {
-       while(follow_ob == 1) //turn right until closest object is in front
-       {
-          follow_ob = close_object();
-          PWMDTY0 = 255;
-          PWMDTY2 = 255;
-          PWMDTY1 = 0;
-          PWMDTY3 = 0;
-       }
+      follow_ob = close_object();
+      PWMDTY0 = 128;
+      PWMDTY2 = 255;
+      PWMDTY1 = 0;
+      PWMDTY3 = 0;
     }
     else if(follow_ob == 2) //turn left until closest object is in front
     {
-       while(follow_ob == 2) 
-       {
-          follow_ob = close_object();
-          PWMDTY1 = 255;
-          PWMDTY3 = 255;
-          PWMDTY2 = 0;
-          PWMDTY0 = 0;
-       }
+      follow_ob = close_object();
+      PWMDTY1 = 128;
+      PWMDTY3 = 255;
+      PWMDTY2 = 0;
+      PWMDTY0 = 0;      
     }
 }
 
@@ -369,7 +376,11 @@ interrupt 7 void RTI_ISR(void)
 {
   	// clear RTI interrupt flagt 
   	CRGFLG = CRGFLG | 0x80; 
-
+    if(PTT_PTT7 == 0 && prev_switch == 1)// check switch value
+    {
+      switch_change = 1;
+    }
+    prev_switch = PORTAD0_PTAD7;
 }
 
 /*
@@ -381,9 +392,10 @@ interrupt 7 void RTI_ISR(void)
 interrupt 15 void TIM_ISR(void)
 {
   	// clear TIM CH 7 interrupt flag 
- 	TFLG1 = TFLG1 | 0x80; 
- 
-
+ 	TFLG1 = TFLG1 | 0x80;
+ 	follow_ob = close_object(); //find which object to follow
+  if(follow_ob != 4) // dont move car if objects are too close
+    move_car(follow_ob);  //move car in direction 
 }
 
 /*

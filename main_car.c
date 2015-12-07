@@ -89,7 +89,8 @@ unsigned char read1;
 unsigned char read2;
 unsigned char read3;
 unsigned char read4;
-int diff;
+int diff = 0;
+int temp_diff = 0;
 unsigned char rin	= 0;	// SCI transmit display buffer IN pointer
 unsigned char rout	= 0;	// SCI transmit display buffer OUT pointer
 #define RSIZE 5	// transmit buffer size (4 characters)
@@ -248,11 +249,16 @@ void main(void) {
       tempY = read2;
       diff = read3;
     }  //end if1
-    if(diff == tempX -tempY) {
+    if(tempX > tempY) {
+      temp_diff = tempX - tempY;  
+    } else {
+      temp_diff = tempY -tempX;  
+    }     //end if2
+    if(diff == temp_diff) {
       X = tempX;
       Y = tempY;
       inter = 1;
-    }    //end if2
+    }    //end if3
  }
      
  if(inter == 1 && auto_mode == 0) //Change motor speed when SCI interrupt is received

@@ -3,19 +3,19 @@
  ECE 362 - Mini-Project C Source File - Fall 2015
 ***********************************************************************
 	 	   			 		  			 		  		
- Team ID: < 8 >
+ Team ID: 8
 
- Project Name: < ? >
+ Project Name: DroneControl
 
  Team Members:
 
-   - Team/Doc Leader: < ? >      Signature: ______________________
+   - Team/Doc Leader: Leo Welter           Signature: ______________________
    
-   - Software Leader: < ? >      Signature: ______________________
+   - Software Leader: Namrata Madan        Signature: ______________________
 
-   - Interface Leader: < ? >     Signature: ______________________
+   - Interface Leader: Apoorv Wariagade    Signature: ______________________
 
-   - Peripheral Leader: < ? >    Signature: ______________________
+   - Peripheral Leader: Shubham Rastogi    Signature: ______________________
 
 
  Academic Honesty Statement:  In signing above, we hereby certify that we 
@@ -26,36 +26,37 @@
 
 ***********************************************************************
 
- The objective of this Mini-Project is to .... < ? >
-
+ The objective of this Mini-Project is to create a simultaneously autonomous
+ and radio-frequency controlled land drone by utilizing various peripherals of
+ the 9S12 family Freescale microcontrollers (specifically, the PWM, SCI, ATD, and 
+ TIM) 
 
 ***********************************************************************
 
  List of project-specific success criteria (functionality that will be
  demonstrated):
 
- 1.
+ 1. Remote-controlled wireless communication
 
- 2.
+ 2. Autonomous obstacle detection
 
- 3.
+ 3. Synchronized motor and controls 
 
- 4.
-
- 5.
+ 4. Implementation of hardware sensors
 
 ***********************************************************************
 
-  Date code started: < ? >
+  Date code started: 11/20/2015
 
   Update history (add an entry every time a significant change is made):
 
-  Date: < ? >  Name: < ? >   Update: < ? >
+  Date: 11/25  Name: Shubham   Update: Autonomous drive
 
-  Date: < ? >  Name: < ? >   Update: < ? >
+  Date: 11/30  Name: Namrata   Update: Initializations
+    
+  Date: 12/3   Name: Namrata   Update: SCI routine
 
-  Date: < ? >  Name: < ? >   Update: < ? >
-
+  Date: 12/7   Name: Namrata   Update: Finalized design
 
 ***********************************************************************
 */
@@ -67,8 +68,8 @@
 /* All functions after main should be initialized here */
 char inchar(void);
 void outchar(char x);
-int close_object();
-void move_car(int follow_ob);
+char close_object();
+void move_car(char follow_ob);
 unsigned char bci();
 
 /* Variable declarations */
@@ -82,9 +83,7 @@ int M_right = 0; //Right motor speed
 int M_left = 0; //Left motor speed
 int auto_mode = 0;//flag to check if autonomous mode is on
                   //0 for rc and 1 for autonomous
-int prev_switch = 0; //previous state of autonomous switch
-int switch_change = 0; //flag for change of switch state
-int follow_ob; // Contains the object that needs to be followed
+char follow_ob; // Contains the object that needs to be followed
 unsigned char read1;
 unsigned char read2;
 unsigned char read3;
@@ -162,8 +161,6 @@ void  initializations(void) {
 /*
   Initialize the RTI for an 8.192 ms interrupt rate
 */
-  CRGINT = 0x00;  //disable CRG block
-  RTICTL = 0x70; //8.192 ms interrupt rate
   
    
 /* PWM initializations */
@@ -316,7 +313,7 @@ void main(void) {
  Find out closest object and return integer corresponding to direction
 ************************************************************************
 */
-int close_object() 
+char close_object() 
 {
    ATDCTL5 = 0x10;
    while(ATDSTAT0 != 0x80){}
@@ -358,9 +355,8 @@ void move_car(int follow_ob)
       PWMDTY3 = 255;
       PWMDTY2 = 255;
     } 
-    else if(follow_ob == 1) 
+    else if(follow_ob == 1)  //turn right 
     {
-      follow_ob = close_object();
       PWMDTY0 = 128;
       PWMDTY2 = 255;
       PWMDTY1 = 0;
@@ -368,7 +364,6 @@ void move_car(int follow_ob)
     }
     else if(follow_ob == 2) //turn left until closest object is in front
     {
-      follow_ob = close_object();
       PWMDTY1 = 128;
       PWMDTY3 = 255;
       PWMDTY2 = 0;
@@ -387,11 +382,6 @@ interrupt 7 void RTI_ISR(void)
 {
   	// clear RTI interrupt flagt 
   	CRGFLG = CRGFLG | 0x80; 
-    if(PTT_PTT7 == 0 && prev_switch == 1)// check switch value
-    {
-      switch_change = 1;
-    }
-    prev_switch = PORTAD0_PTAD7;
 }
 
 /*
@@ -402,7 +392,7 @@ interrupt 7 void RTI_ISR(void)
 
 interrupt 15 void TIM_ISR(void)
 {
-  	// clear TIM CH 7 interrupt flag 
+  // clear TIM CH 7 interrupt flag 
  	TFLG1 = TFLG1 | 0x80;
  	follow_ob = close_object(); //find which object to follow
   if(follow_ob != 4) // dont move car if objects are too close

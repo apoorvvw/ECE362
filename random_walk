@@ -206,15 +206,7 @@ void main(void) {
    auto_mode = 0;
    TIE = 0x00;   //disable interrupts
  }
- 
- if(switch_change == 1) {
-   switch_change = 0;
-   PWMDTY0 = 0x00;
-   PWMDTY1 = 0x00;
-   PWMDTY2 = 0x00;
-   PWMDTY3 = 0x00;
- }
-  
+
  if(stop == 1) 
  {
    PWMDTY0 = 0;

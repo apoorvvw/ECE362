@@ -3,19 +3,19 @@
  ECE 362 - Mini-Project C Source File - Fall 2015
 ***********************************************************************
 	 	   			 		  			 		  		
- Team ID: < 8 >
+ Team ID: 8
 
- Project Name: < Remote (Transmitter) >
+ Project Name: DroneControl
 
  Team Members:
 
-   - Team/Doc Leader: < ? >      Signature: ______________________
+   - Team/Doc Leader: Leo Welter           Signature: ______________________
    
-   - Software Leader: < ? >      Signature: ______________________
+   - Software Leader: Namrata Madan        Signature: ______________________
 
-   - Interface Leader: < ? >     Signature: ______________________
+   - Interface Leader: Apoorv Wariagade    Signature: ______________________
 
-   - Peripheral Leader: < ? >    Signature: ______________________
+   - Peripheral Leader: Shubham Rastogi    Signature: ______________________
 
 
  Academic Honesty Statement:  In signing above, we hereby certify that we 
@@ -26,37 +26,31 @@
 
 ***********************************************************************
 
- The objective of this Mini-Project is to .... < ? >
-
+ The objective of this Mini-Project is to create a simultaneously autonomous
+ and radio-frequency controlled land drone by utilizing various peripherals of
+ the 9S12 family Freescale microcontrollers (specifically, the PWM, SCI, ATD, and 
+ TIM) 
 
 ***********************************************************************
 
  List of project-specific success criteria (functionality that will be
  demonstrated):
 
- 1.
+ 1. Remote-controlled wireless communication
 
- 2.
+ 2. Autonomous obstacle detection
 
- 3.
+ 3. Synchronized motor and controls 
 
- 4.
-
- 5.
+ 4. Implementation of hardware sensors
 
 ***********************************************************************
 
-  Date code started: < ? >
+  Date code started: 11/20/2015
 
   Update history (add an entry every time a significant change is made):
 
-  Date: < ? >  Name: < ? >   Update: < ? >
-
-  Date: < ? >  Name: < ? >   Update: < ? >
-
-  Date: < ? >  Name: < ? >   Update: < ? >
-
-
+  Date: 11/30  Name: Shubham   Update: SCI routine
 ***********************************************************************
 */
 
